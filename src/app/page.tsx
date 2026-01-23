@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Navbar } from "@/components/layout/navbar";
+import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ArrowRight, Bot, Code2, Zap } from "lucide-react";
@@ -6,27 +8,7 @@ import { ArrowRight, Bot, Code2, Zap } from "lucide-react";
 export default function Home() {
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      {/* Navbar (Simple for now) */}
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/50 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center">
-              <span className="font-bold text-white">V</span>
-            </div>
-            <span className="font-bold text-lg tracking-tight">Autorepo</span>
-          </div>
-          <div className="flex items-center space-x-4">
-            <Link href="/login" className="text-sm text-white/70 hover:text-white transition-colors">
-              Sign In
-            </Link>
-            <Link href="/register">
-              <Button size="sm" className="bg-white text-black hover:bg-white/90 border-0 shadow-none">
-                Get Started
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       <main className="pt-32 pb-20 px-6">
         {/* Hero Section */}
@@ -98,9 +80,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-white/5 py-12 text-center text-white/30 text-sm">
-        <p>&copy; 2026 Vertical AI. All rights reserved.</p>
-      </footer>
+      <Footer />
     </div>
   );
 }
