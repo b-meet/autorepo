@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { ArrowRight, Github } from 'lucide-react';
+import { GoogleIcon } from '@/components/ui/icons';
 
 export default function LoginPage() {
     return (
@@ -43,9 +44,14 @@ export default function LoginPage() {
                         </div>
                     </div>
 
-                    <Button variant="outline" className="w-full" type="button">
-                        <Github className="mr-2 h-4 w-4" /> Github
-                    </Button>
+                    <div className="grid grid-cols-2 gap-4">
+                        <Button variant="outline" className="w-full" type="button">
+                            <GoogleIcon className="mr-2 h-4 w-4" /> Google
+                        </Button>
+                        <Button variant="outline" className="w-full" type="button">
+                            <Github className="mr-2 h-4 w-4" /> Github
+                        </Button>
+                    </div>
                 </form>
 
                 <div className="mt-6 text-center text-sm text-white/60">
