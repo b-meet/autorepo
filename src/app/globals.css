@@ -14,6 +14,8 @@
   --btn-text: #ffffff;
   
   --grid-color: rgba(0, 0, 0, 0.03);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
 }
 
 [data-theme='dark'] {
@@ -30,6 +32,8 @@
   --btn-text: #111111;
 
   --grid-color: rgba(255, 255, 255, 0.03);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.15);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
 }
 
 /* Base Reset */
@@ -40,9 +44,9 @@
 }
 
 html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
+body,
+:root {
+  height: 100%;
 }
 
 body {
@@ -51,6 +55,35 @@ body {
   font-family: var(--font-geist-sans), Inter, sans-serif;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow: hidden; /* Prevent body scroll */
+}
+
+/* Custom Scrollbar Logic */
+::-webkit-scrollbar {
+  width: 10px; /* Wider for full visibility */
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(var(--bg-rgb), 0.02);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 /* Subtle Grid Background */
@@ -101,41 +134,84 @@ h1, h2, h3, h4 {
 }
 
 .card:hover {
-  transform: translateY(-4px);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   border-color: rgba(0, 0, 0, 0.15);
+}
+
+.card-static {
+  transition: none !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+  pointer-events: none; /* Optional: indicates non-interactive result */
+}
+
+.card-static:hover {
+  transform: none !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+  border-color: var(--border-color) !important;
 }
 
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.8rem 2rem;
-  border-radius: 12px;
-  font-weight: 500;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-weight: 600;
   background-color: var(--btn-bg);
   color: var(--btn-text);
-  border: 1px solid transparent;
+  border: 1px solid var(--border-color);
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.95rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.85rem;
+  gap: 0.5rem;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
 .button:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
+  opacity: 0.98;
+  filter: brightness(1.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.button-pro {
+  background: var(--text-main);
+  color: var(--bg-color);
+  border-color: var(--text-main);
+}
+
+.button-secondary {
+  background: var(--card-bg);
+  color: var(--text-main);
+  border-color: var(--border-color);
+}
+
+.button-secondary:hover {
+  background: rgba(var(--bg-rgb), 0.05);
+  border-color: var(--text-main);
 }
 
 .button-outline {
   background-color: transparent;
   color: var(--text-main);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
 }
 
-.button-outline:hover {
-  background-color: rgba(0, 0, 0, 0.03);
-  border-color: var(--text-main);
+.button-ghost {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
+
+.button-ghost:hover {
+  background: rgba(var(--bg-rgb), 0.05);
+  border-color: var(--border-color);
+  color: var(--text-main);
 }
 
 .input {
@@ -231,6 +307,8 @@ h1, h2, h3, h4 {
   display: flex;
   flex: 1;
   width: 100%;
+  height: calc(100vh - 0px); /* Fill space */
+  overflow: hidden;
 }
 
 .dash-sidebar {
@@ -242,7 +320,10 @@ h1, h2, h3, h4 {
   flex-direction: column;
   height: 100%;
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 .dash-center {
@@ -257,17 +338,22 @@ h1, h2, h3, h4 {
   background-size: cover, 40px 40px, 40px 40px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 0;
+  height: 100%;
+  overflow: hidden; /* Only children scroll */
 }
 
 .dash-right {
-  width: 320px;
+  width: 380px; /* Increased for better preview */
   border-left: 1px solid var(--border-color);
   background-color: var(--card-bg);
   display: flex;
   flex-direction: column;
   height: 100%;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  z-index: 10;
 }
 
 @media (max-width: 1200px) {
@@ -307,9 +393,54 @@ h1, h2, h3, h4 {
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
+  background-color: rgba(128, 128, 128, 0.05); /* Neutral visible background */
 }
 
 .dash-nav-item:hover, .dash-nav-item.active {
-  background-color: rgba(0,0,0,0.03);
+  background-color: rgba(128, 128, 128, 0.1); 
   color: var(--text-main);
+}
+
+.user-card-hover {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.user-card-hover:hover {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(var(--bg-rgb), 0.2) !important;
+}
+
+.logout-button {
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout-button:hover {
+  background-color: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }

@@ -16,12 +16,25 @@ import {
   X,
   Maximize2,
   Minimize2,
-  Monitor
+  Monitor,
+  Star,
+  GitFork,
+  File,
+  Folder,
+  Circle,
+  AlertCircle,
+  Copy,
+  RotateCcw,
+  Check,
+  Loader2
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
+import { fetchRepoData, type RepoData } from '@/app/actions/github';
+import { getScans, saveScan, updateScan, deleteScan, type Scan } from '@/app/actions/scans';
+import { Edit2, Trash2, CheckCircle } from 'lucide-react';
 
 type GenerationStep = 'IDLE' | 'SCANNING' | 'ANALYZING' | 'SYNTHESIZING' | 'COMPLETED';
 
@@ -39,44 +52,115 @@ interface DashboardViewProps {
 export function DashboardView({ user }: DashboardViewProps) {
   const [step, setStep] = React.useState<GenerationStep>('IDLE');
   const [repoUrl, setRepoUrl] = React.useState('');
+  const [repoData, setRepoData] = React.useState<RepoData | null>(null);
+  const [isFetching, setIsFetching] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   const [logs, setLogs] = React.useState<string[]>([]);
-  const [recentScans] = React.useState<ScanHistory[]>([]);
+  const [recentScans, setRecentScans] = React.useState<Scan[]>([]);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editName, setEditName] = React.useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
   
   // Layout States
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
-  const [previewVisible, setPreviewVisible] = React.useState(true);
+  const [previewVisible, setPreviewVisible] = React.useState(false); // Off by default
   const [previewEnlarged, setPreviewEnlarged] = React.useState(false);
+
+  const headings = React.useMemo(() => [
+    "What codebase should we explore today?",
+    "Ready to document something amazing?",
+    "Every great repo deserves a better README.",
+    "Let's map out your project's logic.",
+    "Codebase analysis, synthesized in seconds.",
+    "Professional documentation starts here."
+  ], []);
+
+  const [currentHeading, setCurrentHeading] = React.useState(headings[0]);
+
+  React.useEffect(() => {
+    if (step === 'IDLE') {
+      const random = Math.floor(Math.random() * headings.length);
+      setCurrentHeading(headings[random]);
+    }
+  }, [step, headings]);
 
   const supabase = createClient();
   const router = useRouter();
 
-  const handleStartGeneration = () => {
+  React.useEffect(() => {
+    loadScans();
+    
+    // Load layout preferences from LocalStorage
+    const savedSidebar = localStorage.getItem('sidebar-collapsed');
+    const savedPreview = localStorage.getItem('preview-visible');
+    
+    if (savedSidebar !== null) setSidebarCollapsed(savedSidebar === 'true');
+    if (savedPreview !== null) setPreviewVisible(savedPreview === 'true');
+  }, []);
+
+  // Save layout preferences when they change
+  React.useEffect(() => {
+    localStorage.setItem('sidebar-collapsed', sidebarCollapsed.toString());
+  }, [sidebarCollapsed]);
+
+  React.useEffect(() => {
+    localStorage.setItem('preview-visible', previewVisible.toString());
+  }, [previewVisible]);
+
+  const loadScans = async () => {
+    const data = await getScans();
+    setRecentScans(data);
+  };
+
+  const handleStartGeneration = async () => {
     if (!repoUrl) return;
-    setStep('SCANNING');
+    setIsFetching(true);
+    setError(null);
     setLogs([]);
+    setStep('SCANNING');
     addLog('Initiating repository ingestion...');
     
-    setTimeout(() => {
-      addLog('Scanning directory structure...');
-      addLog('Filtering out node_modules, .git, and large binary files.');
-    }, 1000);
+    try {
+      addLog(`Connecting to GitHub API for ${repoUrl}...`);
+      const data = await fetchRepoData(repoUrl);
+      setRepoData(data);
+      addLog(`[OK] Fetched metadata for ${data.full_name}`);
+      addLog(`[OK] Identified ${data.files.length} files in the snapshot.`);
+      
+      // Simulate analysis steps based on real data
+      setTimeout(() => {
+        setStep('ANALYZING');
+        addLog('Mapping logical entry points...');
+        addLog(`Primary Language identified: ${data.language}`);
+      }, 1500);
 
-    setTimeout(() => {
-      setStep('ANALYZING');
-      addLog('Mapping logical entry points...');
-      addLog('Identified: React (Next.js), TypeScript, Framer Motion.');
-    }, 3000);
+      setTimeout(() => {
+        setStep('SYNTHESIZING');
+        addLog('Synthesizing professional README structure...');
+        addLog('Tone set to: Premium Technical Minimalist.');
+      }, 3500);
 
-    setTimeout(() => {
-      setStep('SYNTHESIZING');
-      addLog('Synthesizing professional README structure...');
-      addLog('Tone set to: Premium Technical Minimalist.');
-    }, 6000);
+      setTimeout(async () => {
+        setStep('COMPLETED');
+        addLog('README Generation Complete.');
+        
+        // Save to DB
+        try {
+          const newScan = await saveScan(data, "Default README content generated by AI."); 
+          setRecentScans(prev => [newScan, ...prev]);
+        } catch (saveErr) {
+          console.error("Failed to persist scan:", saveErr);
+        }
+      }, 5500);
 
-    setTimeout(() => {
-      setStep('COMPLETED');
-      addLog('README Generation Complete.');
-    }, 9000);
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred.');
+      addLog(`[ERROR] ${err.message}`);
+      setStep('IDLE');
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -91,7 +175,57 @@ export function DashboardView({ user }: DashboardViewProps) {
   const resetToNew = () => {
     setStep('IDLE');
     setRepoUrl('');
+    setRepoData(null);
     setLogs([]);
+    setError(null);
+  };
+
+  const selectScan = (scan: Scan) => {
+    setRepoData(scan.metadata as RepoData);
+    setRepoUrl(scan.repo_url);
+    setStep('COMPLETED');
+    setLogs([`[HISTORICAL] Loaded ${scan.repo_name} from ${new Date(scan.created_at).toLocaleDateString()}`]);
+    if (window.innerWidth < 1200) setSidebarCollapsed(true);
+  };
+
+  const handleDeleteScan = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmId) return;
+    setIsDeleting(true);
+    try {
+      await deleteScan(deleteConfirmId);
+      setRecentScans(prev => prev.filter(s => s.id !== deleteConfirmId));
+      if (repoData?.name === recentScans.find(s => s.id === deleteConfirmId)?.repo_name) {
+        resetToNew();
+      }
+      setDeleteConfirmId(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const startEditing = (e: React.MouseEvent, scan: Scan) => {
+    e.stopPropagation();
+    setEditingId(scan.id);
+    setEditName(scan.repo_name);
+  };
+
+  const handleUpdateScan = async (e: React.FormEvent, id: string) => {
+    e.preventDefault();
+    if (!editName.trim()) return;
+    try {
+      await updateScan(id, editName);
+      setRecentScans(prev => prev.map(s => s.id === id ? { ...s, repo_name: editName } : s));
+      setEditingId(null);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const userDisplayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
@@ -102,24 +236,35 @@ export function DashboardView({ user }: DashboardViewProps) {
         
         {/* LEFT SIDEBAR */}
         <aside className="dash-sidebar" style={{ width: sidebarCollapsed ? '68px' : '280px' }}>
-          {/* Sidebar Toggle & Logo */}
-          <div style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', paddingLeft: '0.5rem' }}>
-              <button 
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-main)', padding: '4px', borderRadius: '6px' }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-              >
-                <Menu size={20} />
-              </button>
-              {!sidebarCollapsed && (
-                <Link href="/" style={{ fontWeight: 700, fontSize: '1.1rem', letterSpacing: '-0.02em' }}>
-                  autorepo
-                </Link>
-              )}
-            </div>
-            
+          {/* Sidebar Toggle & Logo - Unified 64px Navbar */}
+          <div style={{ 
+            height: '64px', 
+            borderBottom: '1px solid var(--border-color)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            padding: '0 1.25rem',
+            gap: '1rem',
+            backgroundColor: 'rgba(var(--bg-rgb), 0.02)',
+            backdropFilter: 'blur(8px)',
+            flexShrink: 0
+          }}>
+            <button 
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-main)', padding: '4px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            >
+              <Menu size={20} />
+            </button>
+            {!sidebarCollapsed && (
+              <Link href="/" style={{ fontWeight: 700, fontSize: '1.1rem', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center' }}>
+                autorepo
+              </Link>
+            )}
+          </div>
+
+          {/* New Scan Button - Below 64px Navbar */}
+          <div style={{ padding: '1.25rem 1rem 0.5rem' }}>
             <button 
               onClick={resetToNew}
               className="button button-outline" 
@@ -139,12 +284,74 @@ export function DashboardView({ user }: DashboardViewProps) {
             </button>
           </div>
           
-          {/* History */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0 0.5rem' }}>
-            {recentScans.length > 0 && !sidebarCollapsed && (
-              <div style={{ padding: '1rem 0.5rem 0.5rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Recent Scans
-              </div>
+           {/* History */}
+           <div style={{ flex: 1, overflowY: 'auto', padding: '0 0.5rem' }} className="custom-scrollbar">
+            {!sidebarCollapsed && (
+              <>
+                <div style={{ padding: '1rem 0.5rem 0.5rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Recent Scans
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  {recentScans.map((scan) => (
+                    <div 
+                      key={scan.id}
+                      onClick={() => selectScan(scan)}
+                      className={`dash-nav-item ${repoData?.name === scan.repo_name ? 'active' : ''}`}
+                      style={{ 
+                        padding: '0.5rem 0.75rem', 
+                        fontSize: '0.8rem',
+                        position: 'relative',
+                        group: 'true'
+                      } as any}
+                    >
+                      <Clock size={14} style={{ marginRight: '0.75rem', opacity: 0.5 }} />
+                      
+                      {editingId === scan.id ? (
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <form onSubmit={(e) => handleUpdateScan(e, scan.id)} style={{ flex: 1 }}>
+                            <input 
+                              autoFocus
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              onBlur={() => setEditingId(null)}
+                              style={{ width: '100%', background: 'transparent', border: 'none', color: 'inherit', outline: 'none', borderBottom: '1px solid var(--accent-color)', fontSize: '0.8rem' }}
+                            />
+                          </form>
+                          <Check 
+                            size={14} 
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => handleUpdateScan(e as any, scan.id)} 
+                            style={{ cursor: 'pointer', color: 'var(--success-color, #22c55e)' }} 
+                          />
+                          <X 
+                            size={14} 
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={(e) => { e.stopPropagation(); setEditingId(null); }} 
+                            style={{ cursor: 'pointer', color: 'var(--error-color, #ef4444)' }} 
+                          />
+                        </div>
+                      ) : (
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {scan.repo_name}
+                        </span>
+                      )}
+
+                      {editingId !== scan.id && (
+                        <div className="history-actions" style={{ display: 'none', gap: '0.4rem', opacity: 0.6 }}>
+                          <Edit2 size={12} onClick={(e) => startEditing(e, scan)} style={{ cursor: 'pointer' }} />
+                          <Trash2 size={12} onClick={(e) => handleDeleteScan(e, scan.id)} style={{ cursor: 'pointer' }} />
+                        </div>
+                      )}
+
+                      <style jsx>{`
+                        .dash-nav-item:hover .history-actions {
+                          display: flex !important;
+                        }
+                      `}</style>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
@@ -160,18 +367,21 @@ export function DashboardView({ user }: DashboardViewProps) {
               {!sidebarCollapsed && <span>Settings</span>}
             </div>
 
-            <div style={{ 
-              marginTop: '1rem',
-              padding: sidebarCollapsed ? '0.5rem' : '0.75rem 1rem', 
-              borderRadius: '16px', 
-              backgroundColor: 'rgba(0,0,0,0.03)',
-              border: '1px solid var(--border-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-              gap: '0.75rem',
-              margin: sidebarCollapsed ? '0' : '0 0.5rem'
-            }}>
+            <div 
+              className="user-card-hover"
+              style={{ 
+                marginTop: '1rem',
+                padding: sidebarCollapsed ? '0.5rem' : '0.75rem 1rem', 
+                borderRadius: '16px', 
+                backgroundColor: 'rgba(0,0,0,0.03)',
+                border: '1px solid var(--border-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+                gap: '0.75rem',
+                margin: sidebarCollapsed ? '0' : '0 0.5rem'
+              }}
+            >
               <div style={{ 
                 width: '32px', 
                 height: '32px', 
@@ -193,115 +403,238 @@ export function DashboardView({ user }: DashboardViewProps) {
                 </div>
               )}
               {!sidebarCollapsed && (
-                <button 
+                <div 
                   onClick={handleLogout}
-                  title="Log out"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px' }}
-                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
-                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  className="logout-button"
+                  title="Sign Out"
                 >
                   <LogOut size={16} />
-                </button>
+                </div>
               )}
             </div>
           </div>
         </aside>
 
         {/* CENTER: Workspace */}
-        <main className="dash-center" style={{ 
-          flex: previewEnlarged ? 0 : 1, 
-          opacity: previewEnlarged ? 0 : 1, 
-          pointerEvents: previewEnlarged ? 'none' : 'auto',
-          visibility: previewEnlarged ? 'hidden' : 'visible',
-          display: previewEnlarged ? 'none' : 'flex'
-        }}>
+        <main className="dash-center" style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <header style={{ 
             height: '64px', 
             borderBottom: '1px solid var(--border-color)', 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'space-between',
-            padding: '0 2rem'
+            padding: '0 2rem',
+            backgroundColor: 'rgba(var(--bg-rgb), 0.02)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 5
           }}>
-            <h2 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>Workspace / {step === 'IDLE' ? 'New Scan' : 'Analysis'}</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              <span>Workspace</span>
+              <span style={{ opacity: 0.3 }}>/</span>
+              <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>
+                {step === 'SCANNING' ? 'Analysis' : repoData?.name || 'New Scan'}
+              </span>
+            </div>
             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
               {!previewVisible && (
                 <button 
                   onClick={() => setPreviewVisible(true)}
                   className="button button-outline"
-                  style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem', borderRadius: '8px' }}
+                  style={{ 
+                    padding: '0.4rem 0.8rem', 
+                    fontSize: '0.75rem', 
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
                 >
-                  <Monitor size={14} style={{ marginRight: '0.5rem' }} /> Open Preview
+                  <Monitor size={14} /> Open Preview
                 </button>
               )}
               <ThemeToggle />
             </div>
           </header>
 
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '3rem' }}>
+          <div style={{ flex: 1, padding: '3rem', display: 'flex', flexDirection: 'column', position: 'relative' }}>
             <AnimatePresence mode="wait">
               {step === 'IDLE' ? (
                 <motion.div 
                   key="idle"
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  style={{ maxWidth: '600px', margin: 'auto', width: '100%' }}
+                  style={{ 
+                    maxWidth: '800px', 
+                    width: '100%', 
+                    margin: '0 auto', 
+                    padding: '2rem',
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
                 >
-                  <div style={{ textAlign: 'center', marginBottom: '3.5rem' }}>
-                    <h1 style={{ fontSize: '2.75rem', fontFamily: 'var(--font-instrument-serif)', marginBottom: '1rem', lineHeight: 1.1 }}>
-                      What codebase should we <br />explore today?
+                  <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+                    <h1 style={{ 
+                      fontSize: 'clamp(2.5rem, 6vw, 4.5rem)', 
+                      lineHeight: 1.1, 
+                      marginBottom: '1.5rem',
+                      fontFamily: 'var(--font-instrument-serif)',
+                      letterSpacing: '-0.03em'
+                    }}>
+                      {currentHeading}
                     </h1>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem' }}>
+                    <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', maxWidth: '600px', margin: '0 auto' }}>
                       Enter a public GitHub repository URL to start the automated scan.
                     </p>
                   </div>
 
-                  <div className="card" style={{ padding: '0.75rem', display: 'flex', gap: '0.5rem', borderRadius: '18px', boxShadow: '0 20px 50px rgba(0,0,0,0.06)' }}>
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', paddingLeft: '1rem' }}>
-                      <GitBranch size={20} style={{ opacity: 0.4, marginRight: '0.75rem' }} />
+                  <div 
+                    className="card" 
+                    style={{ 
+                      width: '100%', 
+                      maxWidth: '680px', 
+                      padding: '0.375rem', 
+                      borderRadius: '24px',
+                      display: 'flex',
+                      gap: '0.375rem', 
+                      backgroundColor: 'rgba(var(--bg-rgb), 0.02)',
+                      backdropFilter: 'blur(20px)',
+                      border: '1px solid var(--border-color)',
+                      boxShadow: '0 20px 40px rgba(0,0,0,0.05)'
+                    }}
+                  >
+                    <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <GitBranch size={20} style={{ position: 'absolute', left: '1.5rem', opacity: 0.4 }} />
                       <input 
                         type="text" 
-                        placeholder="https://github.com/user/repo" 
+                        placeholder="https://github.com/user/repo"
                         value={repoUrl}
                         onChange={(e) => setRepoUrl(e.target.value)}
-                        style={{ border: 'none', outline: 'none', background: 'transparent', flex: 1, fontSize: '1rem' }}
-                        onKeyDown={(e) => e.key === 'Enter' && handleStartGeneration()}
+                        style={{ 
+                          width: '100%', 
+                          padding: '1.25rem 1.5rem 1.25rem 3.5rem',
+                          fontSize: '1rem',
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          outline: 'none',
+                          color: 'var(--text-main)',
+                        }}
                       />
                     </div>
                     <button 
+                      disabled={isFetching || !repoUrl}
                       onClick={handleStartGeneration}
-                      className="button" 
-                      style={{ padding: '0.6rem 2rem', borderRadius: '12px' }}
+                      className="button button-pro"
+                      style={{ padding: '0 2.5rem' }}
                     >
-                      Generate
+                      {isFetching ? <Loader2 size={18} className="animate-spin" /> : 'Generate'}
                     </button>
                   </div>
+                  
+                  {error && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      style={{ marginTop: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#d93025', justifyContent: 'center', fontSize: '0.9rem' }}
+                    >
+                      <AlertCircle size={16} />
+                      {error}
+                    </motion.div>
+                  )}
                 </motion.div>
               ) : (
                 <motion.div 
                   key="generation"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}
                 >
-                  <div style={{ marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center' }}>
-                    <div className="badge" style={{ margin: 0 }}>Active analysis</div>
-                    <span style={{ fontSize: '0.9rem', opacity: 0.6, fontWeight: 500 }}>{repoUrl}</span>
-                  </div>
+                  {/* Repo Profile Header */}
+                  {repoData && (
+                    <div className="card" style={{ 
+                      padding: '2rem', 
+                      borderRadius: '24px', 
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: 'var(--card-bg)',
+                      boxShadow: '0 10px 30px rgba(0,0,0,0.02)'
+                    }}>
+                      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                        <img 
+                          src={repoData.owner_avatar} 
+                          alt={repoData.name} 
+                          style={{ width: '64px', height: '64px', borderRadius: '16px', border: '1px solid var(--border-color)' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'var(--font-geist-sans)' }}>{repoData.name}</h3>
+                            <div className="badge" style={{ margin: 0, backgroundColor: 'rgba(var(--text-main-rgb), 0.05)', border: '1px solid var(--border-color)' }}>
+                              <Star size={12} style={{ marginRight: '4px' }} /> {repoData.stars.toLocaleString()}
+                            </div>
+                          </div>
+                          <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.25rem', lineHeight: 1.5, maxWidth: '600px' }}>
+                            {repoData.description}
+                          </p>
+                          <div style={{ display: 'flex', gap: '1.5rem', fontSize: '0.85rem', color: 'var(--text-main)', opacity: 0.8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--accent-color, #0070f3)' }} />
+                              {repoData.language}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <GitBranch size={14} />
+                              {repoData.default_branch}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
 
-                  <div className="card" style={{ 
+                      {/* File snapshot */}
+                      <div style={{ 
+                        marginTop: '2rem', 
+                        padding: '1.25rem', 
+                        backgroundColor: 'rgba(var(--bg-rgb), 0.03)', 
+                        borderRadius: '16px',
+                        border: '1px dotted var(--border-color)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', opacity: 0.6 }}>
+                          <Monitor size={14} />
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Repo Snapshot</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
+                          {repoData.files.slice(0, 8).map((file, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              {file.type === 'tree' ? <Folder size={14} style={{ color: 'var(--accent-color)' }} /> : <File size={14} />}
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.path}</span>
+                            </div>
+                          ))}
+                          {repoData.files.length > 8 && (
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', opacity: 0.5, fontStyle: 'italic' }}>
+                              + {repoData.files.length - 8} more files...
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Terminal Logs Container */}
+                  <div className="card card-static" style={{ 
                     flex: 1, 
-                    backgroundColor: 'rgba(0,0,0,0.015)', 
+                    backgroundColor: 'rgba(var(--bg-rgb), 0.02)', 
                     fontFamily: 'var(--font-geist-mono)',
                     padding: '2.5rem',
-                    overflowY: 'auto',
                     border: '1px solid var(--border-color)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.5rem',
-                    borderRadius: '20px'
+                    gap: '0.6rem',
+                    borderRadius: '24px',
+                    pointerEvents: 'auto'
                   }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', opacity: 0.5 }}>
+                      <Zap size={14} />
+                      <span style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase' }}>Analysis Engine v1.0</span>
+                    </div>
                     {logs.map((log, i) => (
                       <div className="terminal-line" key={i}>
                         <span className="terminal-dim" style={{ minWidth: '25px' }}>{i + 1}</span>
@@ -323,11 +656,86 @@ export function DashboardView({ user }: DashboardViewProps) {
           </div>
         </main>
 
+        <AnimatePresence>
+          {deleteConfirmId && (
+            <div 
+              style={{ 
+                position: 'fixed', 
+                inset: 0, 
+                backgroundColor: 'rgba(0,0,0,0.4)', 
+                backdropFilter: 'blur(8px)', 
+                zIndex: 1000, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                padding: '2rem'
+              }}
+              onClick={() => setDeleteConfirmId(null)}
+            >
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.98, y: 5 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98, y: 5 }}
+                onClick={(e) => e.stopPropagation()}
+                className="card"
+                style={{ 
+                  maxWidth: '360px', 
+                  width: '100%', 
+                  padding: '1.5rem', 
+                  borderRadius: '16px',
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+                  textAlign: 'left'
+                }}
+              >
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>Delete Repository</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem', lineHeight: 1.4 }}>
+                  Are you sure you want to remove this scan? This action cannot be undone.
+                </p>
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                  <button 
+                    onClick={() => setDeleteConfirmId(null)}
+                    style={{ 
+                      padding: '0.5rem 1rem', 
+                      fontSize: '0.85rem', 
+                      borderRadius: '8px', 
+                      background: 'none', 
+                      border: 'none', 
+                      cursor: 'pointer', 
+                      color: 'var(--text-muted)' 
+                    }}
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={confirmDelete}
+                    className="button button-pro"
+                    style={{ 
+                      padding: '0.5rem 1rem', 
+                      fontSize: '0.85rem', 
+                      borderRadius: '8px', 
+                      backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                      color: '#ef4444', 
+                      borderColor: 'rgba(239, 68, 68, 0.2)' 
+                    }}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? <Loader2 size={16} className="animate-spin" /> : 'Confirm'}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* RIGHT SIDEBAR: Live Preview */}
         <aside className="dash-right" style={{ 
-          width: previewVisible ? (previewEnlarged ? '100%' : '320px') : '0',
+          width: previewVisible 
+            ? (previewEnlarged ? `calc(100vw - ${sidebarCollapsed ? '68px' : '280px'})` : '320px') 
+            : '0',
           borderLeft: previewVisible ? '1px solid var(--border-color)' : 'none',
-          opacity: previewVisible ? 1 : 0
+          opacity: previewVisible ? 1 : 0,
+          flexShrink: 0
         }}>
           <header style={{ 
             height: '64px', 
@@ -335,7 +743,9 @@ export function DashboardView({ user }: DashboardViewProps) {
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'space-between',
-            padding: '0 1.5rem'
+            padding: '0 1.5rem',
+            backgroundColor: 'rgba(var(--bg-rgb), 0.02)',
+            backdropFilter: 'blur(8px)'
           }}>
             <h2 style={{ fontSize: '0.9rem', fontWeight: 600 }}>Live Preview</h2>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -356,36 +766,65 @@ export function DashboardView({ user }: DashboardViewProps) {
             </div>
           </header>
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            padding: previewEnlarged ? '1.5rem' : '0.75rem', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: previewEnlarged ? '1.5rem' : '0.75rem' 
+          }}>
             {step === 'COMPLETED' ? (
               <motion.div 
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }}
                 style={{ height: '100%', display: 'flex', flexDirection: 'column', maxWidth: previewEnlarged ? '1000px' : 'none', margin: previewEnlarged ? '0 auto' : '0' }}
               >
-                <div className="card" style={{ flex: 1, padding: '1.5rem', fontSize: '0.85rem', overflowY: 'auto', backgroundColor: 'var(--bg-color)', marginBottom: '1.5rem', borderRadius: '12px' }}>
-                  <h1 style={{ fontSize: '2rem', marginBottom: '1.5rem', fontWeight: 700 }}># README.md</h1>
-                  <p style={{ marginBottom: '1.5rem', color: 'var(--text-muted)', fontSize: '1rem' }}>Welcome to your new repository. This professional technical documentation was automatically synthesized by Autorepo based on deep codebase traversal.</p>
+                <div className="card card-static" style={{ 
+                  flex: 1, 
+                  padding: previewEnlarged ? '3rem' : '0.75rem', 
+                  fontSize: '0.9rem', 
+                  backgroundColor: 'var(--bg-color)', 
+                  marginBottom: previewEnlarged ? '1.5rem' : '0.75rem', 
+                  borderRadius: '16px', 
+                  border: '1px solid var(--border-color)', 
+                  pointerEvents: 'auto' 
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: previewEnlarged ? '2rem' : '1rem' }}>
+                    <div className="badge" style={{ margin: 0, fontSize: '0.65rem' }}>PREVIEW</div>
+                    <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                      Markdown • UTF-8
+                    </div>
+                  </div>
                   
-                  <h2 style={{ fontSize: '1.3rem', margin: '2rem 0 1rem', fontWeight: 600 }}>## Key Highlights</h2>
+                  <h1 style={{ fontSize: previewEnlarged ? '2rem' : '1.5rem', marginBottom: previewEnlarged ? '1.5rem' : '1rem', fontWeight: 700 }}># README.md</h1>
+                  <p style={{ marginBottom: previewEnlarged ? '1.5rem' : '1rem', color: 'var(--text-muted)', fontSize: previewEnlarged ? '1rem' : '0.9rem' }}>Welcome to your new repository. This professional technical documentation was automatically synthesized by Autorepo based on deep codebase traversal.</p>
+                  
+                  <h2 style={{ fontSize: previewEnlarged ? '1.3rem' : '1.1rem', margin: previewEnlarged ? '2rem 0 1rem' : '1.5rem 0 0.75rem', fontWeight: 600 }}>## Key Highlights</h2>
                   <ul style={{ paddingLeft: '1.5rem', color: 'var(--text-muted)', lineHeight: 2 }}>
-                    <li><strong style={{ color: 'var(--text-main)' }}>Deep Analysis:</strong> Traversed 128 source files across 12 directories.</li>
+                    <li><strong style={{ color: 'var(--text-main)' }}>Deep Analysis:</strong> Traversed source files across the entire directory structure.</li>
                     <li><strong style={{ color: 'var(--text-main)' }}>Logic Mapping:</strong> Corrected identified core entry points and dependencies.</li>
                     <li><strong style={{ color: 'var(--text-main)' }}>Design-First:</strong> Tailored for Premium Technical Minimalist aesthetics.</li>
                   </ul>
 
-                  <h2 style={{ fontSize: '1.3rem', margin: '2rem 0 1rem', fontWeight: 600 }}>## Quick Start</h2>
-                  <div className="card" style={{ padding: '1rem', backgroundColor: 'rgba(0,0,0,0.02)', border: '1px solid var(--border-color)', fontFamily: 'var(--font-geist-mono)', fontSize: '0.8rem' }}>
+                  <h2 style={{ fontSize: previewEnlarged ? '1.3rem' : '1.1rem', margin: previewEnlarged ? '2rem 0 1rem' : '1.5rem 0 0.75rem', fontWeight: 600 }}>## Quick Start</h2>
+                  <div className="card" style={{ padding: '1rem', backgroundColor: 'rgba(var(--bg-rgb), 0.05)', border: '1px solid var(--border-color)', fontFamily: 'var(--font-geist-mono)', fontSize: '0.8rem', borderRadius: '10px' }}>
                     npm install && npm run dev
                   </div>
                 </div>
                 
-                <div style={{ display: 'flex', gap: '1rem', paddingBottom: '1rem' }}>
-                  <button className="button" style={{ flex: 1, borderRadius: '10px' }}>
-                    Copy Markdown
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: previewEnlarged ? 'row' : 'column',
+                  gap: '0.75rem', 
+                  paddingBottom: '1rem', 
+                  flexShrink: 0 
+                }}>
+                  <button className="button button-pro" style={{ flex: 1, width: '100%', justifyContent: 'center' }}>
+                    <Copy size={16} /> Copy Markdown
                   </button>
-                  <button className="button button-outline" style={{ flex: 1, borderRadius: '10px' }}>
-                    Regenerate
+                  <button className="button button-secondary" style={{ flex: 1, width: '100%', justifyContent: 'center' }}>
+                    <RotateCcw size={16} /> Regenerate
                   </button>
                 </div>
               </motion.div>
