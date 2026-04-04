@@ -21,6 +21,7 @@ import {
 import { ThemeToggle } from '@/components/ThemeToggle';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
+import { useRouter } from 'next/navigation';
 
 type GenerationStep = 'IDLE' | 'SCANNING' | 'ANALYZING' | 'SYNTHESIZING' | 'COMPLETED';
 
@@ -31,7 +32,11 @@ interface ScanHistory {
   date: string;
 }
 
-export default function DashboardPage() {
+interface DashboardViewProps {
+  user: any;
+}
+
+export function DashboardView({ user }: DashboardViewProps) {
   const [step, setStep] = React.useState<GenerationStep>('IDLE');
   const [repoUrl, setRepoUrl] = React.useState('');
   const [logs, setLogs] = React.useState<string[]>([]);
@@ -43,6 +48,7 @@ export default function DashboardPage() {
   const [previewEnlarged, setPreviewEnlarged] = React.useState(false);
 
   const supabase = createClient();
+  const router = useRouter();
 
   const handleStartGeneration = () => {
     if (!repoUrl) return;
@@ -73,6 +79,11 @@ export default function DashboardPage() {
     }, 9000);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.refresh();
+  };
+
   const addLog = (msg: string) => {
     setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
   };
@@ -82,6 +93,8 @@ export default function DashboardPage() {
     setRepoUrl('');
     setLogs([]);
   };
+
+  const userDisplayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
 
   return (
     <div className="dashboard-layout">
@@ -133,7 +146,6 @@ export default function DashboardPage() {
                 Recent Scans
               </div>
             )}
-            {/* ... other history items if any ... */}
           </div>
 
           {/* Bottom Side Actions */}
@@ -176,14 +188,17 @@ export default function DashboardPage() {
               </div>
               {!sidebarCollapsed && (
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Meet Bhalodiya</p>
+                  <p style={{ fontSize: '0.8rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userDisplayName}</p>
                   <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Pro Plan</p>
                 </div>
               )}
               {!sidebarCollapsed && (
                 <button 
+                  onClick={handleLogout}
                   title="Log out"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px' }}
+                  onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                  onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
                   <LogOut size={16} />
                 </button>
