@@ -393,7 +393,6 @@ h1, h2, h3, h4 {
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
-  background-color: rgba(128, 128, 128, 0.05); /* Neutral visible background */
 }
 
 .dash-nav-item:hover, .dash-nav-item.active {

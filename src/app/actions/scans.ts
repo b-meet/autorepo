@@ -33,7 +33,7 @@ export async function getScans() {
   return data as Scan[];
 }
 
-export async function saveScan(repoData: any, readmeContent: string) {
+export async function saveScan(repoData: any, readmeContent: string, style: string, vibe: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -46,7 +46,7 @@ export async function saveScan(repoData: any, readmeContent: string) {
       repo_url: repoData.url || '',
       repo_name: repoData.name,
       readme_content: readmeContent,
-      metadata: repoData,
+      metadata: { ...repoData, selectedStyle: style, vibePrompt: vibe },
     })
     .select()
     .single();
